@@ -2,10 +2,25 @@ import os
 import pandas as pd
 from pandas import Series
 from glob import glob
-import os
+import argparse
 
-def main(is_real,dataset_path,folder_paths):
-
+def main(dataset_path):
+    video_dir = os.path.join(dataset_path, 'video')
+    frames_dir = os.path.join(dataset_path, 'frames')
+    csv_dir = os.path.join(dataset_path, 'csv')
+    
+    # 确保csv目录存在
+    os.makedirs(csv_dir, exist_ok=True)
+    
+    # 获取video目录下的所有文件夹
+    folders = [f for f in os.listdir(video_dir) if os.path.isdir(os.path.join(video_dir, f))]
+    
+    if not folders:
+        print(f"No folders found in {video_dir}")
+        return
+    
+    print(f"Found {len(folders)} folders: {folders}")
+    
     def count_images_in_folder(folder_path):
         image_count = 0
         image_names = []
@@ -16,49 +31,57 @@ def main(is_real,dataset_path,folder_paths):
         image_names.sort()
         return image_count, image_names
 
-    for folder in folder_paths:
-        folder_path = f'{dataset_path}/frames/' + folder
-        csv_path = f'{dataset_path}/csv/' + folder + '.csv'
+    for folder in folders:
+        # 根据文件夹名判断是否为真实视频
+        is_real = folder.startswith('real_')
+        
+        folder_path = os.path.join(frames_dir, folder)
+        csv_path = os.path.join(csv_dir, f'{folder}.csv')
+        
+        # 检查frames目录下是否存在该文件夹
+        if not os.path.exists(folder_path):
+            print(f"Skipping {folder}: frames directory not found")
+            continue
+        
         all_dirs = []
         for root, dirs, files in os.walk(folder_path):
             for dir in dirs:
                 all_dirs.append(os.path.join(root, dir))
 
-        label = list()
-        save_path = list()
-        frame_counts = list()
-        frame_seq_counts = list()
-        content_paths = list()
-        str_labels = list()
+        label = []
+        save_path = []
+        frame_counts = []
+        frame_seq_counts = []
+        content_paths = []
+        str_labels = []
 
         for video_path in all_dirs:
-            frame_paths = glob(video_path + '/*')
+            frame_paths = glob(os.path.join(video_path, '*'))
             temp_frame_count, temp_frame_seqs = count_images_in_folder(video_path)
             if temp_frame_count == 0:
                 continue
 
             for frame in frame_paths:
-                content_path = frame.split('/')[1:-1]
-                content_path = '/'.join(content_path)
-                content_path = f'{dataset_path}/' + content_path
-                frame_path = frame.split('/')[1:]
-                frame_path = '/'.join(frame_path)
-                frame_path = f'{dataset_path}/' + frame_path
+                # 简化路径处理
+                rel_path = os.path.relpath(frame, dataset_path)
+                content_path = os.path.dirname(rel_path)
+                content_path = os.path.join(dataset_path, content_path)
+                frame_path = os.path.join(dataset_path, rel_path)
 
                 print(content_path, frame_path)
-                if is_real == True:
-                    label.append(str(0))
+                if is_real:
+                    label.append('0')
                     str_labels.append('Real Video')
-                elif is_real == False :
-                    label.append(str(1))
+                else:
+                    label.append('1')
                     str_labels.append('AI Video')
-                frame_counts.append(int(temp_frame_count))
+                frame_counts.append(temp_frame_count)
                 frame_seq_counts.append(temp_frame_seqs)
                 save_path.append(frame_path)
                 content_paths.append(content_path)
                 break
 
-        dic={
+        dic = {
             'content_path': Series(data=content_paths),
             'image_path': Series(data=save_path),
             'type_id': Series(data=str_labels),
@@ -67,29 +90,14 @@ def main(is_real,dataset_path,folder_paths):
             'frame_seq': Series(data=frame_seq_counts)
         }
 
-        print(dic)
+        print(f"Processing {folder}: {len(label)} samples")
         pd.DataFrame(dic).to_csv(csv_path, encoding='utf-8', index=False)
-
-import argparse
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ('true'):
-        return True
-    elif v.lower() in ('false'):
-        return False
-    else:
-        raise argparse.ArgumentTypeError(f'Boolean value expected. Got: {v}')
+        print(f"Saved CSV: {csv_path}")
 
 if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser(description='Process dataset with mandatory --is-real.')
-    parser.add_argument('--is-real', type=str2bool, required=True,
-                        help="Specify whether video is real: --is-real True or --is-real False (required)")
+    parser = argparse.ArgumentParser(description='Process all video folders and generate CSV files')
     parser.add_argument('--dataset-path', type=str, default='GenVideo',
-                        help="Path to the dataset directory ")
-    parser.add_argument('--folders', nargs='+',
-                        help="List of testsets to process ")
+                        help="Path to the dataset directory (default: GenVideo)")
     args = parser.parse_args()
 
-    main(args.is_real, args.dataset_path, args.folders)
+    main(args.dataset_path)
