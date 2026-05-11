@@ -3,6 +3,7 @@ import argparse
 import torch
 import numpy as np
 import random
+import pandas as pd
 from tqdm import tqdm
 import datetime
 from sklearn.metrics import average_precision_score
@@ -66,17 +67,36 @@ if __name__ == '__main__':
     
     # Eval
     y_true, y_pred = [], []
+    score_rows = []
     with torch.no_grad():
-        for batch_frames, batch_label in tqdm(eval_loader, desc="Evaluating"):
+        for sample_idx, (batch_frames, batch_label) in enumerate(tqdm(eval_loader, desc="Evaluating")):
             batch_inputs = batch_frames.cuda()
             _, _, batch_dis_std = model(batch_inputs)
-            y_pred.extend(batch_dis_std.cpu().flatten().numpy())
-            y_true.extend(batch_label.cpu().flatten().numpy())
+            batch_scores = batch_dis_std.cpu().flatten().numpy()
+            batch_labels = batch_label.cpu().flatten().numpy()
+            y_pred.extend(batch_scores)
+            y_true.extend(batch_labels)
+
+            for offset, (label, score) in enumerate(zip(batch_labels, batch_scores)):
+                row_idx = sample_idx * eval_loader.batch_size + offset
+                source_row = eval_dataset.df.iloc[row_idx]
+                score_rows.append({
+                    "content_path": source_row["content_path"],
+                    "type_id": source_row["type_id"],
+                    "score": float(score),
+                })
     
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)
     ap_score = average_precision_score(1-y_true, y_pred)
     
+    os.makedirs("results", exist_ok=True)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    fake_name = os.path.splitext(os.path.basename(fake_csv))[0]
+    output_file = f"results/result_{timestamp}.txt"
+    score_file = f"results/result_{fake_name}_{timestamp}.csv"
+
     result_str = (
         f"AP Evaluation Results\n"
         f"Encoder: {encoder_type}\n"
@@ -85,18 +105,19 @@ if __name__ == '__main__':
         f"Fake CSV: {fake_csv}\n"
         f"Total Samples: {len(y_true)}\n"
         f"AP Score: {ap_score:.4f}\n"
+        f"Score CSV: {score_file}\n"
     )
     
     print("\n" + "="*50)
     print(result_str.strip())
     print("="*50)
-    
-    os.makedirs("results", exist_ok=True)
-
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"results/result_{timestamp}.txt"
 
     with open(output_file, 'w') as f:
         f.write(result_str)
 
+    pd.DataFrame(score_rows).sort_values("score", ascending=False).to_csv(
+        score_file, encoding='utf-8', index=False
+    )
+
     print(f"\nResults saved to {output_file}")
+    print(f"Scores saved to {score_file}")

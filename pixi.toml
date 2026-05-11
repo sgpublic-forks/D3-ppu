@@ -1,0 +1,54 @@
+[workspace]
+channels = ["conda-forge"]
+name = "D3"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+prepare_frame = { cmd = ["python", "utils/video2frame.py", "--dataset-path", "GenVideo"] }
+clear_empty_frame = { cmd = ["find", "./GenVideo/frames", "-type", "d", "-empty", "-print", "-delete"] }
+folder2csv_real = { cmd = ["python", "utils/folder2csv.py", "--is-real", "True", "--dataset-path", "GenVideo", "--folders", "real_MSRVTT", "real_ysjf", "real_ysjf_3fps"] }
+folder2csv_ai = { cmd = ["python", "utils/folder2csv.py", "--is-real", "False", "--dataset-path", "GenVideo", "--folders", "Crafter", "Gen2", "HotShot", "Lavie", "ModelScope", "MoonValley", "MorphStudio", "Show_1", "Sora", "WildScrape"] }
+infer = { cmd = ["python", "eval.py", "--gpu-id", "0", "--loss", "l2", "--encoder", "XCLIP-16", "--real-csv", "GenVideo/csv/real_{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ fake }}.csv"], args = ["fake", { arg = "real", default = "MSRVTT" }] }
+
+[dependencies]
+python = ">=3.12,<3.13"
+pixi-pycharm = ">=0.0.11,<0.1"
+
+[pypi-dependencies]
+albumentations = "==2.0.8"
+moviepy = "==1.0.3"
+numpy = ">=2,<2.3.0"
+opencv-python-headless = "==4.12.0.88"
+pandas = "==2.3.3"
+scikit-learn = "==1.7.2"
+timm = "==1.0.20"
+tqdm = "==4.67.1"
+transformers = "==4.57.0"
+
+[feature.cuda.system-requirements]
+cuda = "12.9"
+
+[feature.cuda.dependencies]
+cuda-toolkit = ">=12.9,<12.10"
+cudnn = ">=9,<10"
+
+[feature.cuda.pypi-dependencies]
+torch = { version = "==2.9.0", index = "https://download.pytorch.org/whl/cu129" }
+torchvision = { version = ">=0.24.0, <0.25", index = "https://download.pytorch.org/whl/cu128" }
+
+[feature.cpu.pypi-dependencies]
+torch = { version = "==2.9.0", index = "https://download.pytorch.org/whl/cpu" }
+torchvision = { version = ">=0.24.0, <0.25", index = "https://download.pytorch.org/whl/cpu" }
+
+[feature.ppu.pypi-dependencies]
+torch = { version = "==2.9.0+ppu2.0.0.oe", index = "https://ppu-pypi.local/repository/cu129_index/simple/" }
+torchvision = { version = "==0.24.0+ppu2.0.0", index = "https://ppu-pypi.local/repository/pypi_index/simple/" }
+
+[pypi-options]
+no-build-isolation = ["torchvision"]
+
+[environments]
+cpu = { features = ["cpu"] }
+cuda = { features = ["cuda"] }
+default = { features = ["ppu"] }

@@ -4,11 +4,15 @@ from moviepy.editor import VideoFileClip
 import multiprocessing
 import math
 import random
+import subprocess
 
 
 def get_video_length(file_path):
     video = VideoFileClip(file_path)
-    return video.duration
+    try:
+        return video.duration
+    finally:
+        video.close()
 
 def process_video(video_path, dataset_path):
     video_name = video_path.split('/')[-1]
@@ -24,6 +28,7 @@ def process_video(video_path, dataset_path):
     else:
         print(video_name, end='\r')
         try:
+            command = None
             try:
                 frame_rate = 8
                 duration = 3
@@ -33,11 +38,21 @@ def process_video(video_path, dataset_path):
                 else:
                     start_time = math.floor(random.uniform(0, video_length-3))
                 os.makedirs(os.path.dirname(image_path), exist_ok=True)
-                os.system(f"cd {image_path} | ffmpeg -loglevel quiet -ss {start_time} -t {duration} -i {video_path} -vf fps={frame_rate} {image_path}%d.jpg")
+                command = [
+                    "ffmpeg",
+                    "-y",
+                    "-loglevel", "error",
+                    "-ss", str(start_time),
+                    "-t", str(duration),
+                    "-i", video_path,
+                    "-vf", f"fps={frame_rate}",
+                    f"{image_path}%d.jpg",
+                ]
+                subprocess.run(command, check=True, capture_output=True, text=True)
             except Exception as e:
                 with open('error.log', 'a') as f:
-                    f.write(f"{video_name} error\n")
-                print(f"{video_name} error\n")
+                    f.write(f"{video_name}\n  error: {e}\n  cmd: {command}\n")
+                print(f"{video_name} error")
         except:
             with open('error.log', 'a') as f:
                 f.write(f"{video_name} skipped\n")
@@ -60,9 +75,8 @@ if __name__ == '__main__':
     print(f"Find {len(video_paths)} videos!")
     args_list = [(vp, dataset_path) for vp in video_paths]
 
-    with multiprocessing.Pool(processes=32) as pool:
+    with multiprocessing.Pool(processes=4) as pool:
         pool.starmap(process_video, args_list)
-
 
 
 
