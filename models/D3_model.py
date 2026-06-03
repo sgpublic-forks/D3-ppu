@@ -60,7 +60,7 @@ class D3_model(nn.Module):
             modules = list(mobilenetv3.children())[:-1]
             self.encoder = torch.nn.Sequential(*modules).eval() 
 
-    def forward(self, x):
+    def forward(self, x, timestamps=None):
         b, t, _, h, w = x.shape
         images = x.reshape(-1, 3, h, w)
         if self.encoder_type in Transformers:
@@ -75,6 +75,18 @@ class D3_model(nn.Module):
             dis_1st = F.cosine_similarity(vec1, vec2, dim=-1)  # [b, n-1]
         elif self.loss_type == 'l2':
             dis_1st = torch.norm(vec1 - vec2, p=2, dim=-1)  # [b, n-1]
+
+        if timestamps is not None:
+            timestamps = timestamps.to(outputs.device)
+            dt = timestamps[:, 1:] - timestamps[:, :-1]
+            dt = torch.clamp(dt, min=1e-3)
+            dis_1st = dis_1st / dt
+            second_dt = torch.clamp((dt[:, 1:] + dt[:, :-1]) / 2, min=1e-3)
+            dis_2nd = (dis_1st[:, 1:] - dis_1st[:, :-1]) / second_dt
+            dis_2nd_avg = torch.mean(dis_2nd,dim=1)
+            dis_2nd_std = torch.std(dis_2nd, dim=1) # [b]
+            return outputs, dis_2nd_avg, dis_2nd_std
+
         dis_2nd = dis_1st[:, 1:] - dis_1st[:, :-1]  # [b, n-2]
         dis_2nd_avg = torch.mean(dis_2nd,dim=1)
         dis_2nd_std = torch.std(dis_2nd, dim=1) # [b]

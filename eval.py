@@ -32,6 +32,8 @@ if __name__ == '__main__':
                         help='Path to the real data CSV file ')
     parser.add_argument('--fake-csv', type=str, default=None,
                         help='Path to the fake/synthetic data CSV file')
+    parser.add_argument('--temporal-mode', type=str, default='legacy', choices=['legacy', 'time_norm'],
+                        help='D3 temporal scoring mode (default: legacy)')
     args = parser.parse_args()
 
     seed = args.seed
@@ -40,11 +42,13 @@ if __name__ == '__main__':
     encoder_type = args.encoder
     real_csv = args.real_csv
     fake_csv = args.fake_csv
+    temporal_mode = args.temporal_mode
 
     # real_csv = 'datasets/csv/t1.csv'
     # fake_csv = 'datasets/csv/t2.csv' 
     
     print(f"Starting AP evaluation for {encoder_type} with {loss_type} loss")
+    print(f"Temporal Mode: {temporal_mode}")
     print(f"Real CSV: {real_csv}")
     print(f"Fake CSV: {fake_csv}")
     
@@ -53,7 +57,7 @@ if __name__ == '__main__':
     model.eval()
     
     # Load Dataset
-    eval_dataset = D3_dataset_AP(real_csv=real_csv, fake_csv=fake_csv, max_len=1000)
+    eval_dataset = D3_dataset_AP(real_csv=real_csv, fake_csv=fake_csv, max_len=1000, temporal_mode=temporal_mode)
     print(f"Total samples: {len(eval_dataset)}")
     
     eval_loader = torch.utils.data.DataLoader(
@@ -69,9 +73,16 @@ if __name__ == '__main__':
     y_true, y_pred = [], []
     score_rows = []
     with torch.no_grad():
-        for sample_idx, (batch_frames, batch_label) in enumerate(tqdm(eval_loader, desc="Evaluating")):
-            batch_inputs = batch_frames.cuda()
-            _, _, batch_dis_std = model(batch_inputs)
+        for sample_idx, batch in enumerate(tqdm(eval_loader, desc="Evaluating")):
+            if temporal_mode == 'time_norm':
+                batch_frames, batch_timestamps, batch_label = batch
+                batch_inputs = batch_frames.cuda()
+                batch_timestamps = batch_timestamps.cuda()
+                _, _, batch_dis_std = model(batch_inputs, batch_timestamps)
+            else:
+                batch_frames, batch_label = batch
+                batch_inputs = batch_frames.cuda()
+                _, _, batch_dis_std = model(batch_inputs)
             batch_scores = batch_dis_std.cpu().flatten().numpy()
             batch_labels = batch_label.cpu().flatten().numpy()
             y_pred.extend(batch_scores)
@@ -84,6 +95,9 @@ if __name__ == '__main__':
                     "content_path": source_row["content_path"],
                     "type_id": source_row["type_id"],
                     "score": float(score),
+                    "source_fps": source_row.get("source_fps", ""),
+                    "effective_fps": source_row.get("effective_fps", ""),
+                    "temporal_mode": temporal_mode,
                 })
     
     y_true = np.array(y_true)
@@ -101,6 +115,7 @@ if __name__ == '__main__':
         f"AP Evaluation Results\n"
         f"Encoder: {encoder_type}\n"
         f"Loss Type: {loss_type}\n"
+        f"Temporal Mode: {temporal_mode}\n"
         f"Real CSV: {real_csv}\n"
         f"Fake CSV: {fake_csv}\n"
         f"Total Samples: {len(y_true)}\n"

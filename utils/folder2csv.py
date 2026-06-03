@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 from pandas import Series
 from glob import glob
@@ -31,6 +32,13 @@ def main(dataset_path):
         image_names.sort()
         return image_count, image_names
 
+    def read_metadata(folder_path):
+        metadata_path = os.path.join(folder_path, 'metadata.json')
+        if not os.path.exists(metadata_path):
+            return metadata_path, {}
+        with open(metadata_path, 'r') as f:
+            return metadata_path, json.load(f)
+
     for folder in folders:
         # 根据文件夹名判断是否为真实视频
         is_real = folder.startswith('real_')
@@ -54,19 +62,29 @@ def main(dataset_path):
         frame_seq_counts = []
         content_paths = []
         str_labels = []
+        metadata_paths = []
+        source_fps_values = []
+        target_fps_values = []
+        effective_fps_values = []
+        temporal_modes = []
 
         for video_path in all_dirs:
             frame_paths = glob(os.path.join(video_path, '*'))
             temp_frame_count, temp_frame_seqs = count_images_in_folder(video_path)
             if temp_frame_count == 0:
                 continue
+            metadata_path, metadata = read_metadata(video_path)
 
             for frame in frame_paths:
+                if not frame.endswith(('.png', '.jpg', '.jpeg')):
+                    continue
                 # 简化路径处理
                 rel_path = os.path.relpath(frame, dataset_path)
                 content_path = os.path.dirname(rel_path)
                 content_path = os.path.join(dataset_path, content_path)
                 frame_path = os.path.join(dataset_path, rel_path)
+                rel_metadata_path = os.path.relpath(metadata_path, dataset_path)
+                csv_metadata_path = os.path.join(dataset_path, rel_metadata_path)
 
                 print(content_path, frame_path)
                 if is_real:
@@ -79,6 +97,11 @@ def main(dataset_path):
                 frame_seq_counts.append(temp_frame_seqs)
                 save_path.append(frame_path)
                 content_paths.append(content_path)
+                metadata_paths.append(csv_metadata_path if metadata else '')
+                source_fps_values.append(metadata.get('source_fps', ''))
+                target_fps_values.append(metadata.get('target_fps', ''))
+                effective_fps_values.append(metadata.get('effective_fps', ''))
+                temporal_modes.append(metadata.get('temporal_mode', 'legacy'))
                 break
 
         dic = {
@@ -87,7 +110,12 @@ def main(dataset_path):
             'type_id': Series(data=str_labels),
             'label': Series(data=label),
             'frame_len': Series(data=frame_counts),
-            'frame_seq': Series(data=frame_seq_counts)
+            'frame_seq': Series(data=frame_seq_counts),
+            'metadata_path': Series(data=metadata_paths),
+            'source_fps': Series(data=source_fps_values),
+            'target_fps': Series(data=target_fps_values),
+            'effective_fps': Series(data=effective_fps_values),
+            'temporal_mode': Series(data=temporal_modes),
         }
 
         print(f"Processing {folder}: {len(label)} samples")

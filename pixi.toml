@@ -4,12 +4,22 @@ name = "D3"
 platforms = ["linux-64"]
 version = "0.1.0"
 
-[tasks]
-prepare_frame = { cmd = ["python", "utils/video2frame.py", "--dataset-path", "GenVideo"] }
-clear_empty_frame = { cmd = ["find", "./GenVideo/frames", "-type", "d", "-empty", "-print", "-delete"] }
-folder2csv = { cmd = ["python", "utils/folder2csv.py", "--dataset-path", "GenVideo"] }
-infer = { cmd = ["python", "eval.py", "--gpu-id", "0", "--loss", "l2", "--encoder", "XCLIP-16", "--real-csv", "GenVideo/csv/real_{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ fake }}.csv"], args = ["fake", { arg = "real", default = "MSRVTT" }] }
-convert_fps = { cmd = ["python", "utils/convert_fps.py", "--folder", "{{ folder }}", "--dataset-path", "GenVideo", "--fps", "{{ fps }}"], args = ["folder", { arg = "fps", default = "3" }] }
+[tasks.prepare_frame]
+cmd = ["python", "utils/video2frame.py", "--dataset-path", "GenVideo"]
+
+[tasks.clear_empty_frame]
+cmd = ["find", "./GenVideo/frames", "-type", "d", "-empty", "-print", "-delete"]
+
+[tasks.folder2csv]
+cmd = ["python", "utils/folder2csv.py", "--dataset-path", "GenVideo"]
+
+[tasks.infer]
+cmd = ["python", "eval.py", "--gpu-id", "0", "--loss", "l2", "--encoder", "XCLIP-16", "--real-csv", "GenVideo/csv/{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ fake }}.csv"]
+args = ["fake", { arg = "real", default = "real_MSRVTT" }]
+
+[tasks.convert_fps]
+cmd = ["python", "utils/convert_fps.py", "--folder", "{{ folder }}", "--dataset-path", "GenVideo", "--fps", "{{ fps }}"]
+args = ["folder", { arg = "fps", default = "3" }]
 
 [dependencies]
 python = ">=3.12,<3.13"
