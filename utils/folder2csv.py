@@ -41,7 +41,7 @@ def main(dataset_path):
 
     for folder in folders:
         # 根据文件夹名判断是否为真实视频
-        is_real = folder.startswith('real_')
+        is_real = folder.startswith('real')
         
         folder_path = os.path.join(frames_dir, folder)
         csv_path = os.path.join(csv_dir, f'{folder}.csv')
