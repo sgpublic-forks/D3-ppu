@@ -4,18 +4,32 @@ name = "D3"
 platforms = ["linux-64"]
 version = "0.1.0"
 
-[tasks.prepare_frame]
-cmd = ["python", "utils/video2frame.py", "--dataset-path", "GenVideo"]
-
-[tasks.clear_empty_frame]
-cmd = ["find", "./GenVideo/frames", "-type", "d", "-empty", "-print", "-delete"]
+[tasks.prepare_embedding]
+cmd = ["python", "-m", "utils.video2embedding", "--dataset-path", "GenVideo", "--encoder", "{{ encoder }}", "--temporal-mode", "{{ temporal_mode }}", "--target-fps", "{{ fps }}", "--gpu-id", "{{ gpu }}"]
+args = [
+  { arg = "temporal_mode", default = "time_norm" },
+  { arg = "encoder", default = "XCLIP-16" },
+  { arg = "fps", default = "8" },
+  { arg = "gpu", default = "0" },
+]
 
 [tasks.folder2csv]
-cmd = ["python", "utils/folder2csv.py", "--dataset-path", "GenVideo"]
+cmd = ["python", "-m", "utils.folder2csv", "--dataset-path", "GenVideo", "--encoder", "{{ encoder }}", "--temporal-mode", "{{ temporal_mode }}"]
+args = [
+  { arg = "temporal_mode", default = "time_norm" },
+  { arg = "encoder", default = "XCLIP-16" },
+]
 
 [tasks.infer]
-cmd = ["python", "eval.py", "--gpu-id", "0", "--loss", "l2", "--encoder", "XCLIP-16", "--real-csv", "GenVideo/csv/{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ fake }}.csv"]
-args = ["fake", { arg = "real", default = "real_MSRVTT" }]
+cmd = ["python", "eval.py", "--gpu-id", "{{ gpu }}", "--loss", "{{ loss }}", "--temporal-mode", "{{ temporal_mode }}", "--real-csv", "GenVideo/csv/{{ encoder }}/{{ temporal_mode }}/{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ encoder }}/{{ temporal_mode }}/{{ fake }}.csv"]
+args = [
+  "fake",
+  { arg = "real", default = "real_MSRVTT" },
+  { arg = "temporal_mode", default = "time_norm" },
+  { arg = "encoder", default = "XCLIP-16" },
+  { arg = "loss", default = "l2" },
+  { arg = "gpu", default = "0" },
+]
 
 [tasks.convert_fps]
 cmd = ["python", "utils/convert_fps.py", "--folder", "{{ folder }}", "--dataset-path", "GenVideo", "--fps", "{{ fps }}"]
@@ -24,6 +38,7 @@ args = ["folder", { arg = "fps", default = "3" }]
 [dependencies]
 python = ">=3.12,<3.13"
 pixi-pycharm = ">=0.0.11,<0.1"
+setuptools = ">=82.0.1,<83"
 
 [pypi-dependencies]
 albumentations = "==2.0.8"
@@ -44,11 +59,11 @@ cuda-toolkit = ">=12.9,<12.10"
 cudnn = ">=9,<10"
 
 [feature.cuda.pypi-dependencies]
-torch = { version = "==2.9.0", index = "https://download.pytorch.org/whl/cu129" }
+torch = { version = ">=2.9.0, <2.10", index = "https://download.pytorch.org/whl/cu129" }
 torchvision = { version = ">=0.24.0, <0.25", index = "https://download.pytorch.org/whl/cu128" }
 
 [feature.cpu.pypi-dependencies]
-torch = { version = "==2.9.0", index = "https://download.pytorch.org/whl/cpu" }
+torch = { version = ">=2.9.0, <2.10", index = "https://download.pytorch.org/whl/cpu" }
 torchvision = { version = ">=0.24.0, <0.25", index = "https://download.pytorch.org/whl/cpu" }
 
 [feature.ppu.pypi-dependencies]

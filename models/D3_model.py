@@ -21,6 +21,7 @@ class D3_model(nn.Module):
         super(D3_model, self).__init__()
         self.loss_type = loss_type
         self.encoder_type = encoder_type
+        self.scorer = D3Scorer(loss_type)
 
         if encoder_type == 'CLIP-16':
             self.encoder = CLIPVisionModel.from_pretrained("openai/clip-vit-base-patch16")
@@ -60,7 +61,7 @@ class D3_model(nn.Module):
             modules = list(mobilenetv3.children())[:-1]
             self.encoder = torch.nn.Sequential(*modules).eval() 
 
-    def forward(self, x, timestamps=None):
+    def encode_frames(self, x):
         b, t, _, h, w = x.shape
         images = x.reshape(-1, 3, h, w)
         if self.encoder_type in Transformers:
@@ -68,13 +69,27 @@ class D3_model(nn.Module):
             outputs = outputs.pooler_output
         else:
             outputs = self.encoder(images)
-        outputs=outputs.reshape(b, t, -1)
+        return outputs.reshape(b, t, -1)
+
+    def forward(self, x, timestamps=None):
+        outputs = self.encode_frames(x)
+        return self.scorer(outputs, timestamps)
+
+
+class D3Scorer(nn.Module):
+    def __init__(self, loss_type='cos'):
+        super(D3Scorer, self).__init__()
+        self.loss_type = loss_type
+
+    def forward(self, outputs, timestamps=None):
         vec1 = outputs[:, :-1, :]  # [b, n-1, 768]
         vec2 = outputs[:, 1:, :]   # [b, n-1, 768]
         if self.loss_type == 'cos':
             dis_1st = F.cosine_similarity(vec1, vec2, dim=-1)  # [b, n-1]
         elif self.loss_type == 'l2':
             dis_1st = torch.norm(vec1 - vec2, p=2, dim=-1)  # [b, n-1]
+        else:
+            raise ValueError(f"Unsupported loss type: {self.loss_type}")
 
         if timestamps is not None:
             timestamps = timestamps.to(outputs.device)

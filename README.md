@@ -52,19 +52,18 @@ cd ..
 
 ### 3. Preprocessing Steps
 
-**Step 1: Frame Extraction**
-Convert videos to frames using the video2frame utility:
+**Step 1: Embedding Extraction**
+Convert videos to fp32 encoder embeddings. Frames are sampled in memory and are not saved as image files:
 
 ```shell
-python utils/video2frame.py --dataset-path GenVideo
+python utils/video2embedding.py --dataset-path GenVideo --encoder XCLIP-16 --temporal-mode legacy --target-fps 8
 ```
 
 **Step 2: CSV Configuration Generation**
-Generate CSV configuration files for the extracted frames:
+Generate CSV configuration files for the extracted embeddings:
 
 ```shell
-python utils/folder2csv.py --is-real True --dataset-path GenVideo --folders real_MSRVTT
-python utils/folder2csv.py --is-real False --dataset-path GenVideo --folders Crafter Gen2 HotShot Lavie ModelScope MoonValley MorphStudio Show_1 Sora WildScrape
+python utils/folder2csv.py --dataset-path GenVideo --encoder XCLIP-16 --temporal-mode legacy
 ```
 
 ### Expected Dataset Structure
@@ -82,19 +81,21 @@ After proper processing, your dataset directory structure should look like this:
 │   │   ├── <video_idX>.mp4
 │   │   └── ...
 │   └── ... 
-├── frames/
-│   ├── <testsetA>/
-│   │   ├── <video_id1>/
-│   │   │   ├── 1.jpg
-│   │   │   └── ...
-│   │   └── ...
-│   ├── <testsetB>/
-│   │   └── ...
-│   └── ... 
-└── csv/
-    ├── <testsetA>.csv
-    ├── <testsetB>.csv
-    └── ... 
+├── embeddings/
+│   └── XCLIP-16/
+│       └── legacy/
+│           ├── <testsetA>/
+│           │   ├── <video_id1>/
+│           │   │   ├── embedding.npz
+│           │   │   └── metadata.json
+│           │   └── ...
+│           └── ...
+├── csv/
+│   └── XCLIP-16/
+│       └── legacy/
+│           ├── <testsetA>.csv
+│           ├── <testsetB>.csv
+│           └── ...
 ```
 
 For other datasets used in the paper (such as [EvalCrafter](https://github.com/evalcrafter/evalcrafter), [VideoPhy](https://github.com/Hritikbansal/videophy), and [VidProM](https://github.com/WangWenhao0716/VidProM)), you can download them from their official repositories and follow the same preprocessing steps described above.
@@ -104,7 +105,7 @@ For other datasets used in the paper (such as [EvalCrafter](https://github.com/e
 After completing dataset preprocessing, run inference using `eval.py`:
 
 ```bash
-python eval.py --gpu-id 0 --loss l2 --encoder XCLIP-16 --real-csv GenVideo/csv/real_MSRVTT.csv --fake-csv GenVideo/csv/Crafter.csv
+python eval.py --gpu-id 0 --loss l2 --real-csv GenVideo/csv/XCLIP-16/legacy/real_MSRVTT.csv --fake-csv GenVideo/csv/XCLIP-16/legacy/Crafter.csv
 ```
 
 ## Acknowledgement

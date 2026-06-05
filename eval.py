@@ -8,7 +8,7 @@ from tqdm import tqdm
 import datetime
 from sklearn.metrics import average_precision_score
 from data import D3_dataset_AP
-from models import D3_model
+from models import D3Scorer
 
 def seed_everything(seed):
     random.seed(seed)
@@ -25,39 +25,39 @@ if __name__ == '__main__':
                         help='CUDA GPU device ID(s), e.g., "0" or "1,2,3" (default: "5")')
     parser.add_argument('--loss', type=str, default='l2', choices=['l2', 'cos'],
                         help='Loss function type (default: l2)')
-    parser.add_argument('--encoder', type=str, default='XCLIP-16', 
-                        help='Encoder model name (default: XCLIP-16)',
-                        choices=['CLIP-16', 'CLIP-32', 'XCLIP-16', 'XCLIP-32', 'DINO-base', 'DINO-large', 'ResNet-18', 'VGG-16', 'EfficientNet-b4', 'MobileNet-v3'])
     parser.add_argument('--real-csv', type=str, default=None,
                         help='Path to the real data CSV file ')
     parser.add_argument('--fake-csv', type=str, default=None,
                         help='Path to the fake/synthetic data CSV file')
     parser.add_argument('--temporal-mode', type=str, default='legacy', choices=['legacy', 'time_norm'],
                         help='D3 temporal scoring mode (default: legacy)')
+    parser.add_argument('--max-len', type=int, default=9999999,
+                        help='Maximum samples to read from each CSV (default: all)')
     args = parser.parse_args()
 
     seed = args.seed
     gpu_id = args.gpu_id
     loss_type = args.loss
-    encoder_type = args.encoder
     real_csv = args.real_csv
     fake_csv = args.fake_csv
     temporal_mode = args.temporal_mode
+    max_len = args.max_len
+    os.environ['CUDA_VISIBLE_DEVICES'] = gpu_id
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # real_csv = 'datasets/csv/t1.csv'
     # fake_csv = 'datasets/csv/t2.csv' 
     
-    print(f"Starting AP evaluation for {encoder_type} with {loss_type} loss")
+    print(f"Starting AP evaluation with {loss_type} loss")
     print(f"Temporal Mode: {temporal_mode}")
     print(f"Real CSV: {real_csv}")
     print(f"Fake CSV: {fake_csv}")
     
-    # Load Model
-    model = D3_model(encoder_type=encoder_type, loss_type=loss_type).cuda()
-    model.eval()
+    scorer = D3Scorer(loss_type=loss_type).to(device)
+    scorer.eval()
     
     # Load Dataset
-    eval_dataset = D3_dataset_AP(real_csv=real_csv, fake_csv=fake_csv, max_len=1000, temporal_mode=temporal_mode)
+    eval_dataset = D3_dataset_AP(real_csv=real_csv, fake_csv=fake_csv, max_len=max_len, temporal_mode=temporal_mode)
     print(f"Total samples: {len(eval_dataset)}")
     
     eval_loader = torch.utils.data.DataLoader(
@@ -75,14 +75,14 @@ if __name__ == '__main__':
     with torch.no_grad():
         for sample_idx, batch in enumerate(tqdm(eval_loader, desc="Evaluating")):
             if temporal_mode == 'time_norm':
-                batch_frames, batch_timestamps, batch_label = batch
-                batch_inputs = batch_frames.cuda()
-                batch_timestamps = batch_timestamps.cuda()
-                _, _, batch_dis_std = model(batch_inputs, batch_timestamps)
+                batch_embeddings, batch_timestamps, batch_label = batch
+                batch_inputs = batch_embeddings.to(device)
+                batch_timestamps = batch_timestamps.to(device)
+                _, _, batch_dis_std = scorer(batch_inputs, batch_timestamps)
             else:
-                batch_frames, batch_label = batch
-                batch_inputs = batch_frames.cuda()
-                _, _, batch_dis_std = model(batch_inputs)
+                batch_embeddings, batch_label = batch
+                batch_inputs = batch_embeddings.to(device)
+                _, _, batch_dis_std = scorer(batch_inputs)
             batch_scores = batch_dis_std.cpu().flatten().numpy()
             batch_labels = batch_label.cpu().flatten().numpy()
             y_pred.extend(batch_scores)
@@ -95,6 +95,7 @@ if __name__ == '__main__':
                     "content_path": source_row["content_path"],
                     "type_id": source_row["type_id"],
                     "score": float(score),
+                    "encoder_type": source_row.get("encoder_type", ""),
                     "source_fps": source_row.get("source_fps", ""),
                     "effective_fps": source_row.get("effective_fps", ""),
                     "temporal_mode": temporal_mode,
@@ -113,7 +114,6 @@ if __name__ == '__main__':
 
     result_str = (
         f"AP Evaluation Results\n"
-        f"Encoder: {encoder_type}\n"
         f"Loss Type: {loss_type}\n"
         f"Temporal Mode: {temporal_mode}\n"
         f"Real CSV: {real_csv}\n"
