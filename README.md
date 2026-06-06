@@ -56,7 +56,15 @@ cd ..
 Convert videos to fp32 encoder embeddings. Frames are sampled in memory and are not saved as image files:
 
 ```shell
-python utils/video2embedding.py --dataset-path GenVideo --encoder XCLIP-16 --temporal-mode legacy --target-fps 8
+python utils/video2embedding.py --dataset-path GenVideo --encoder XCLIP-16 --temporal-mode legacy --target-fps 8 --gpu-id 0,1 --batch-size 64 --num-workers 16 --prefetch-factor 2 --save-workers 4 --save-pending-batches 16
+```
+
+By default, embeddings are saved without compression for higher throughput. Pass `--compress` if smaller files are preferred over speed.
+
+With pixi, the default task uses `gpu=0,1`, `num_workers=16`, `prefetch_factor=2`, `save_workers=4`, and `save_pending_batches=16`:
+
+```shell
+pixi run prepare_embedding
 ```
 
 **Step 2: CSV Configuration Generation**
@@ -105,7 +113,13 @@ For other datasets used in the paper (such as [EvalCrafter](https://github.com/e
 After completing dataset preprocessing, run inference using `eval.py`:
 
 ```bash
-python eval.py --gpu-id 0 --loss l2 --real-csv GenVideo/csv/XCLIP-16/legacy/real_MSRVTT.csv --fake-csv GenVideo/csv/XCLIP-16/legacy/Crafter.csv
+python eval.py --gpu-id 0,1 --batch-size 2048 --num-workers 4 --loss l2 --real-csv GenVideo/csv/XCLIP-16/legacy/real_MSRVTT.csv --fake-csv GenVideo/csv/XCLIP-16/legacy/Crafter.csv
+```
+
+With pixi, the default inference task uses `gpu=0,1`, `batch_size=2048`, and `num_workers=4`:
+
+```bash
+pixi run infer Crafter
 ```
 
 ## Acknowledgement

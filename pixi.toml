@@ -5,12 +5,17 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 [tasks.prepare_embedding]
-cmd = ["python", "-m", "utils.video2embedding", "--dataset-path", "GenVideo", "--encoder", "{{ encoder }}", "--temporal-mode", "{{ temporal_mode }}", "--target-fps", "{{ fps }}", "--gpu-id", "{{ gpu }}"]
+cmd = ["python", "-m", "utils.video2embedding", "--dataset-path", "GenVideo", "--encoder", "{{ encoder }}", "--temporal-mode", "{{ temporal_mode }}", "--target-fps", "{{ fps }}", "--gpu-id", "{{ gpu }}", "--batch-size", "{{ batch_size }}", "--num-workers", "{{ num_workers }}", "--prefetch-factor", "{{ prefetch_factor }}", "--save-workers", "{{ save_workers }}", "--save-pending-batches", "{{ save_pending_batches }}"]
 args = [
   { arg = "temporal_mode", default = "time_norm" },
   { arg = "encoder", default = "XCLIP-16" },
   { arg = "fps", default = "8" },
-  { arg = "gpu", default = "0" },
+  { arg = "gpu", default = "0,1" },
+  { arg = "batch_size", default = "256" },
+  { arg = "num_workers", default = "16" },
+  { arg = "prefetch_factor", default = "2" },
+  { arg = "save_workers", default = "4" },
+  { arg = "save_pending_batches", default = "16" },
 ]
 
 [tasks.folder2csv]
@@ -21,14 +26,16 @@ args = [
 ]
 
 [tasks.infer]
-cmd = ["python", "eval.py", "--gpu-id", "{{ gpu }}", "--loss", "{{ loss }}", "--temporal-mode", "{{ temporal_mode }}", "--real-csv", "GenVideo/csv/{{ encoder }}/{{ temporal_mode }}/{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ encoder }}/{{ temporal_mode }}/{{ fake }}.csv"]
+cmd = ["python", "eval.py", "--gpu-id", "{{ gpu }}", "--batch-size", "{{ batch_size }}", "--num-workers", "{{ num_workers }}", "--loss", "{{ loss }}", "--temporal-mode", "{{ temporal_mode }}", "--real-csv", "GenVideo/csv/{{ encoder }}/{{ temporal_mode }}/{{ real }}.csv", "--fake-csv", "GenVideo/csv/{{ encoder }}/{{ temporal_mode }}/{{ fake }}.csv"]
 args = [
   "fake",
   { arg = "real", default = "real_MSRVTT" },
   { arg = "temporal_mode", default = "time_norm" },
   { arg = "encoder", default = "XCLIP-16" },
   { arg = "loss", default = "l2" },
-  { arg = "gpu", default = "0" },
+  { arg = "gpu", default = "0,1" },
+  { arg = "batch_size", default = "2048" },
+  { arg = "num_workers", default = "4" },
 ]
 
 [tasks.convert_fps]

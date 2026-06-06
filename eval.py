@@ -16,6 +16,45 @@ def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
+
+def collate_eval_batch(samples):
+    return samples
+
+
+def to_int_label(label):
+    if torch.is_tensor(label):
+        return int(label.item())
+    return int(label)
+
+
+def score_grouped_samples(samples, scorer, device, temporal_mode):
+    grouped = {}
+    for offset, sample in enumerate(samples):
+        if temporal_mode == 'time_norm':
+            embeddings, timestamps, label = sample
+        else:
+            embeddings, label = sample
+            timestamps = None
+        grouped.setdefault(int(embeddings.shape[0]), []).append((offset, embeddings, timestamps, label))
+
+    scored = []
+    for group in grouped.values():
+        offsets = [item[0] for item in group]
+        labels = [to_int_label(item[3]) for item in group]
+        batch_inputs = torch.stack([item[1] for item in group], dim=0).to(device)
+        if temporal_mode == 'time_norm':
+            batch_timestamps = torch.stack([item[2] for item in group], dim=0).to(device)
+            _, _, batch_dis_std = scorer(batch_inputs, batch_timestamps)
+        else:
+            _, _, batch_dis_std = scorer(batch_inputs)
+
+        batch_scores = batch_dis_std.cpu().flatten().numpy()
+        for offset, label, score in zip(offsets, labels, batch_scores):
+            scored.append((offset, label, float(score)))
+
+    return sorted(scored, key=lambda item: item[0])
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Training script with configurable parameters.')
@@ -33,7 +72,15 @@ if __name__ == '__main__':
                         help='D3 temporal scoring mode (default: legacy)')
     parser.add_argument('--max-len', type=int, default=9999999,
                         help='Maximum samples to read from each CSV (default: all)')
+    parser.add_argument('--batch-size', type=int, default=2048,
+                        help='Evaluation batch size (default: 2048)')
+    parser.add_argument('--num-workers', type=int, default=4,
+                        help='Number of DataLoader workers (default: 4)')
     args = parser.parse_args()
+    if args.batch_size < 1:
+        raise ValueError('--batch-size must be >= 1')
+    if args.num_workers < 0:
+        raise ValueError('--num-workers must be >= 0')
 
     seed = args.seed
     gpu_id = args.gpu_id
@@ -54,6 +101,9 @@ if __name__ == '__main__':
     print(f"Fake CSV: {fake_csv}")
     
     scorer = D3Scorer(loss_type=loss_type).to(device)
+    if torch.cuda.is_available() and torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs with DataParallel")
+        scorer = torch.nn.DataParallel(scorer)
     scorer.eval()
     
     # Load Dataset
@@ -62,35 +112,25 @@ if __name__ == '__main__':
     
     eval_loader = torch.utils.data.DataLoader(
         eval_dataset, 
-        batch_size=1, 
+        batch_size=args.batch_size,
         shuffle=False, 
-        num_workers=1, 
+        num_workers=args.num_workers,
         pin_memory=True,
-        drop_last=False
+        drop_last=False,
+        collate_fn=collate_eval_batch,
     )
     
     # Eval
     y_true, y_pred = [], []
     score_rows = []
     with torch.no_grad():
-        for sample_idx, batch in enumerate(tqdm(eval_loader, desc="Evaluating")):
-            if temporal_mode == 'time_norm':
-                batch_embeddings, batch_timestamps, batch_label = batch
-                batch_inputs = batch_embeddings.to(device)
-                batch_timestamps = batch_timestamps.to(device)
-                _, _, batch_dis_std = scorer(batch_inputs, batch_timestamps)
-            else:
-                batch_embeddings, batch_label = batch
-                batch_inputs = batch_embeddings.to(device)
-                _, _, batch_dis_std = scorer(batch_inputs)
-            batch_scores = batch_dis_std.cpu().flatten().numpy()
-            batch_labels = batch_label.cpu().flatten().numpy()
-            y_pred.extend(batch_scores)
-            y_true.extend(batch_labels)
-
-            for offset, (label, score) in enumerate(zip(batch_labels, batch_scores)):
+        for sample_idx, samples in enumerate(tqdm(eval_loader, desc="Evaluating")):
+            scored_samples = score_grouped_samples(samples, scorer, device, temporal_mode)
+            for offset, label, score in scored_samples:
                 row_idx = sample_idx * eval_loader.batch_size + offset
                 source_row = eval_dataset.df.iloc[row_idx]
+                y_pred.append(score)
+                y_true.append(label)
                 score_rows.append({
                     "content_path": source_row["content_path"],
                     "type_id": source_row["type_id"],
