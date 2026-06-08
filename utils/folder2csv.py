@@ -15,7 +15,7 @@ def read_metadata(metadata_path):
 
 def main(dataset_path, encoder_type, temporal_mode):
     video_dir = os.path.join(dataset_path, 'video')
-    embedding_root = os.path.join(dataset_path, 'embeddings', encoder_type, temporal_mode)
+    embedding_root = os.path.join(dataset_path, 'embeddings', encoder_type)
     csv_dir = os.path.join(dataset_path, 'csv', encoder_type, temporal_mode)
 
     os.makedirs(csv_dir, exist_ok=True)
@@ -73,7 +73,7 @@ def main(dataset_path, encoder_type, temporal_mode):
             target_fps_values.append(metadata.get('target_fps', ''))
             effective_fps_values.append(metadata.get('effective_fps', ''))
             encoder_values.append(metadata.get('encoder_type', encoder_type))
-            temporal_modes.append(metadata.get('temporal_mode', temporal_mode))
+            temporal_modes.append(temporal_mode)
 
         dic = {
             'content_path': Series(data=content_paths),

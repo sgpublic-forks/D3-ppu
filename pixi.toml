@@ -5,9 +5,8 @@ platforms = ["linux-64"]
 version = "0.1.0"
 
 [tasks.prepare_embedding]
-cmd = ["python", "-m", "utils.video2embedding", "--dataset-path", "GenVideo", "--encoder", "{{ encoder }}", "--temporal-mode", "{{ temporal_mode }}", "--target-fps", "{{ fps }}", "--gpu-id", "{{ gpu }}", "--batch-size", "{{ batch_size }}", "--num-workers", "{{ num_workers }}", "--prefetch-factor", "{{ prefetch_factor }}", "--save-workers", "{{ save_workers }}", "--save-pending-batches", "{{ save_pending_batches }}"]
+cmd = ["python", "-m", "utils.video2embedding", "--dataset-path", "GenVideo", "--encoder", "{{ encoder }}", "--target-fps", "{{ fps }}", "--gpu-id", "{{ gpu }}", "--batch-size", "{{ batch_size }}", "--num-workers", "{{ num_workers }}", "--prefetch-factor", "{{ prefetch_factor }}", "--save-workers", "{{ save_workers }}", "--save-pending-batches", "{{ save_pending_batches }}"]
 args = [
-  { arg = "temporal_mode", default = "time_norm" },
   { arg = "encoder", default = "XCLIP-16" },
   { arg = "fps", default = "8" },
   { arg = "gpu", default = "0,1" },

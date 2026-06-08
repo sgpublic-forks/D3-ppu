@@ -139,15 +139,15 @@ def preprocess_frames(selected_frames, trans, max_frames):
     return torch.tensor(frames[np.newaxis, :]), kept_frames
 
 
-def get_embedding_path(video_path, dataset_path, encoder_type, temporal_mode):
+def get_embedding_path(video_path, dataset_path, encoder_type):
     video_name = os.path.splitext(os.path.basename(video_path))[0]
     video_root = os.path.join(dataset_path, 'video')
     rel_dir = os.path.dirname(os.path.relpath(video_path, video_root))
-    return os.path.join(dataset_path, 'embeddings', encoder_type, temporal_mode, rel_dir, video_name)
+    return os.path.join(dataset_path, 'embeddings', encoder_type, rel_dir, video_name)
 
 
 def prepare_video(video_path, args, trans):
-    output_dir = get_embedding_path(video_path, args.dataset_path, args.encoder, args.temporal_mode)
+    output_dir = get_embedding_path(video_path, args.dataset_path, args.encoder)
     embedding_path = os.path.join(output_dir, 'embedding.npz')
     metadata_path = os.path.join(output_dir, 'metadata.json')
     if os.path.exists(embedding_path) and os.path.exists(metadata_path) and not args.overwrite:
@@ -183,7 +183,6 @@ def prepare_video(video_path, args, trans):
             'source_fps': source_fps,
             'target_fps': float(args.target_fps),
             'effective_fps': effective_fps,
-            'temporal_mode': args.temporal_mode,
             'start_time': float(start_time),
             'duration': float(duration),
             'frame_count': len(kept_frames),
@@ -396,7 +395,6 @@ def main():
     parser.add_argument('--encoder', type=str, default='XCLIP-16',
                         choices=['CLIP-16', 'CLIP-32', 'XCLIP-16', 'XCLIP-32', 'DINO-base', 'DINO-large',
                                  'ResNet-18', 'VGG-16', 'EfficientNet-b4', 'MobileNet-v3'])
-    parser.add_argument('--temporal-mode', type=str, default='legacy', choices=['legacy', 'time_norm'])
     parser.add_argument('--target-fps', type=float, default=8)
     parser.add_argument('--duration', type=float, default=3)
     parser.add_argument('--max-frames', type=int, default=16)

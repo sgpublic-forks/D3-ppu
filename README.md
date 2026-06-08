@@ -56,10 +56,11 @@ cd ..
 Convert videos to fp32 encoder embeddings. Frames are sampled in memory and are not saved as image files:
 
 ```shell
-python utils/video2embedding.py --dataset-path GenVideo --encoder XCLIP-16 --temporal-mode legacy --target-fps 8 --gpu-id 0,1 --batch-size 64 --num-workers 16 --prefetch-factor 2 --save-workers 4 --save-pending-batches 16
+python utils/video2embedding.py --dataset-path GenVideo --encoder XCLIP-16 --target-fps 8 --gpu-id 0,1 --batch-size 64 --num-workers 16 --prefetch-factor 2 --save-workers 4 --save-pending-batches 16
 ```
 
 By default, embeddings are saved without compression for higher throughput. Pass `--compress` if smaller files are preferred over speed.
+Embeddings are generated once per encoder; `legacy` and `time_norm` only affect CSV generation and inference.
 
 With pixi, the default task uses `gpu=0,1`, `num_workers=16`, `prefetch_factor=2`, `save_workers=4`, and `save_pending_batches=16`:
 
@@ -91,16 +92,19 @@ After proper processing, your dataset directory structure should look like this:
 │   └── ... 
 ├── embeddings/
 │   └── XCLIP-16/
-│       └── legacy/
-│           ├── <testsetA>/
-│           │   ├── <video_id1>/
-│           │   │   ├── embedding.npz
-│           │   │   └── metadata.json
-│           │   └── ...
-│           └── ...
+│       ├── <testsetA>/
+│       │   ├── <video_id1>/
+│       │   │   ├── embedding.npz
+│       │   │   └── metadata.json
+│       │   └── ...
+│       └── ...
 ├── csv/
 │   └── XCLIP-16/
-│       └── legacy/
+│       ├── legacy/
+│       │   ├── <testsetA>.csv
+│       │   ├── <testsetB>.csv
+│       │   └── ...
+│       └── time_norm/
 │           ├── <testsetA>.csv
 │           ├── <testsetB>.csv
 │           └── ...
